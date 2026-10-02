@@ -190,8 +190,9 @@ HTML_APP_CODE = """
       <div class="stat-box highlight"><div class="stat-value" id="s19-par">-</div><div class="stat-label">Score vs Par</div></div>
       <div class="stat-box"><div class="stat-value" id="s19-fir">-</div><div class="stat-label">Fairways Hit (FIR %)</div></div>
       <div class="stat-box"><div class="stat-value" id="s19-gir">-</div><div class="stat-label">Greens in Reg (GIR %)</div></div>
+      <div class="stat-box"><div class="stat-value" id="s19-scramble">-</div><div class="stat-label">Up & Down / Scramble %</div></div>
       <div class="stat-box"><div class="stat-value" id="s19-putts">-</div><div class="stat-label">Total Putts</div></div>
-      <div class="stat-box"><div class="stat-value" id="s19-penalties" style="color:var(--danger);">-</div><div class="stat-label">Penalty Strokes (OB/Water)</div></div>
+      <div class="stat-box" style="grid-column: span 2;"><div class="stat-value" id="s19-penalties" style="color:var(--danger);">-</div><div class="stat-label">Penalty Strokes (OB/Water)</div></div>
     </div>
 
     <!-- Club Performance & Breakdown -->
@@ -223,19 +224,27 @@ HTML_APP_CODE = """
     <!-- 5-Round Aggregated Statistics -->
     <div class="stats-grid">
       <div class="stat-box highlight"><div class="stat-value" id="t-avg-score">-</div><div class="stat-label">5-Round Avg Score</div></div>
-      <div class="stat-box highlight"><div class="stat-value" id="t-avg-putts">-</div><div class="stat-label">5-Round Avg Putts</div></div>
+      <div class="stat-box highlight"><div class="stat-value" id="t-avg-scramble">-</div><div class="stat-label">Up & Down %</div></div>
       <div class="stat-box"><div class="stat-value" id="t-avg-fir">-</div><div class="stat-label">Overall FIR %</div></div>
       <div class="stat-box"><div class="stat-value" id="t-avg-gir">-</div><div class="stat-label">Overall GIR %</div></div>
     </div>
 
-    <!-- Club Dispersion Diagram -->
+    <!-- DUAL DISPERSION DIAGRAMS -->
+    <!-- 1. Fairway & Tee Shot Dispersion Canvas -->
     <div class="canvas-card">
-      <div style="font-weight:bold; color:#1e293b; font-size:0.85rem; margin-bottom:4px;">Multi-Round Club Dispersion Map</div>
-      <div style="font-size:0.75rem; color:#64748b; margin-bottom:8px;">Target Center vs. Actual Ball Landings</div>
+      <div style="font-weight:bold; color:#1e293b; font-size:0.85rem; margin-bottom:2px;">1. Fairway & Tee Shot Dispersion</div>
+      <div style="font-size:0.75rem; color:#64748b; margin-bottom:8px;">Tee Shots Relative to Fairway Centerline</div>
+      <canvas id="fwDispersionCanvas" class="dispersion-canvas" width="280" height="240"></canvas>
+    </div>
+
+    <!-- 2. Green & Approach Shot Dispersion Canvas -->
+    <div class="canvas-card">
+      <div style="font-weight:bold; color:#1e293b; font-size:0.85rem; margin-bottom:2px;">2. Green & Approach Dispersion Map</div>
+      <div style="font-size:0.75rem; color:#64748b; margin-bottom:8px;">Target Pin Center vs. Approach Landings</div>
       
       <div style="margin-bottom:8px;">
-        <select id="dispersion-club-select" onchange="renderDispersionCanvas()" style="padding:6px; border-radius:6px; border:1px solid #cbd5e0; font-weight:bold; font-size:0.8rem;">
-          <option value="ALL">All Clubs Combined</option>
+        <select id="dispersion-club-select" onchange="renderGreenDispersionCanvas()" style="padding:6px; border-radius:6px; border:1px solid #cbd5e0; font-weight:bold; font-size:0.8rem;">
+          <option value="ALL">All Approach Clubs Combined</option>
           <option value="Driver">Driver</option>
           <option value="3-Wood">3-Wood</option>
           <option value="7-Iron">7-Iron</option>
@@ -243,12 +252,12 @@ HTML_APP_CODE = """
         </select>
       </div>
 
-      <canvas id="dispersionCanvas" class="dispersion-canvas" width="280" height="280"></canvas>
+      <canvas id="greenDispersionCanvas" class="dispersion-canvas" width="280" height="240"></canvas>
     </div>
 
     <!-- Miss Direction Analysis -->
     <div class="form-card">
-      <h4 style="margin:0 0 8px; color:var(--primary);">Missed Shot Distribution</h4>
+      <h4 style="margin:0 0 8px; color:var(--primary);">Missed Approach Distribution</h4>
       <div style="display:flex; justify-content:space-between; font-size:0.85rem; margin-bottom:4px;">
         <span>Left / Pull Misses:</span><strong id="miss-left">0%</strong>
       </div>
@@ -307,18 +316,15 @@ HTML_APP_CODE = """
 
   /* DETAILED REALISTIC HOLE GRAPHICS ENGINE */
   function drawHoleGraphics() {
-    // 1. Deep Rough Background Base
     ctx.fillStyle = "#1b4332";
     ctx.fillRect(0, 0, 300, 420);
 
-    // Darker Out of Bounds Outer Border
     ctx.strokeStyle = "#e53e3e";
     ctx.lineWidth = 4;
     ctx.setLineDash([8, 8]);
     ctx.strokeRect(4, 4, 292, 412);
     ctx.setLineDash([]);
 
-    // 2. Fairway Contour Shape (Graduated Green)
     let fwGrad = ctx.createLinearGradient(0, 0, 0, 420);
     fwGrad.addColorStop(0, "#52b788");
     fwGrad.addColorStop(0.5, "#74c69d");
@@ -327,19 +333,17 @@ HTML_APP_CODE = """
     ctx.fillStyle = fwGrad;
     ctx.beginPath();
     ctx.moveTo(120, 370);
-    ctx.bezierCurveTo(90, 300, 110, 220, 130, 170); // Fairway bend
-    ctx.bezierCurveTo(140, 120, 120, 80, 150, 50); // Approach to green
+    ctx.bezierCurveTo(90, 300, 110, 220, 130, 170);
+    ctx.bezierCurveTo(140, 120, 120, 80, 150, 50);
     ctx.bezierCurveTo(180, 80, 180, 140, 175, 200);
     ctx.bezierCurveTo(210, 260, 200, 320, 180, 370);
     ctx.closePath();
     ctx.fill();
 
-    // Fairway Edge Outline
     ctx.strokeStyle = "#95d5b2";
     ctx.lineWidth = 2;
     ctx.stroke();
 
-    // 3. Water Hazard (Left or Right Curve)
     ctx.fillStyle = "#2b6cb0";
     ctx.beginPath();
     ctx.ellipse(80, 230, 28, 45, Math.PI / 6, 0, Math.PI * 2);
@@ -348,30 +352,23 @@ HTML_APP_CODE = """
     ctx.lineWidth = 2;
     ctx.stroke();
 
-    // 4. Sand Bunkers
     ctx.fillStyle = "#d69e2e";
-    // Fairway Bunker
     ctx.beginPath();
     ctx.ellipse(195, 270, 18, 10, -Math.PI / 8, 0, Math.PI * 2);
     ctx.fill();
-    // Greenside Bunker
     ctx.beginPath();
     ctx.ellipse(118, 65, 14, 22, Math.PI / 4, 0, Math.PI * 2);
     ctx.fill();
 
-    // 5. Putting Green & Fringe Collar
-    // Fringe
     ctx.fillStyle = "#2d6a4f";
     ctx.beginPath();
     ctx.ellipse(150, 50, 32, 28, 0, 0, Math.PI * 2);
     ctx.fill();
-    // Green Surface
     ctx.fillStyle = "#74c69d";
     ctx.beginPath();
     ctx.ellipse(150, 50, 26, 22, 0, 0, Math.PI * 2);
     ctx.fill();
 
-    // Flag Stick & Cup
     ctx.fillStyle = "#000000";
     ctx.beginPath();
     ctx.arc(150, 50, 3, 0, Math.PI * 2);
@@ -384,7 +381,6 @@ HTML_APP_CODE = """
     ctx.lineTo(150, 28);
     ctx.stroke();
     
-    // Red Flag
     ctx.fillStyle = "#e53e3e";
     ctx.beginPath();
     ctx.moveTo(150, 28);
@@ -392,19 +388,16 @@ HTML_APP_CODE = """
     ctx.lineTo(150, 40);
     ctx.fill();
 
-    // 6. Tee Box Pad
     ctx.fillStyle = "#cbd5e0";
     ctx.fillRect(130, 385, 40, 14);
     ctx.strokeStyle = "#4a5568";
     ctx.lineWidth = 1;
     ctx.strokeRect(130, 385, 40, 14);
 
-    // 7. Render Plotted Shots with Path Traces
     const hole = roundData[currentHole - 1];
-    let prevX = 150, prevY = 392; // Start from Tee Box center
+    let prevX = 150, prevY = 392;
 
     hole.shots.forEach((s, idx) => {
-      // Draw Trace Line
       ctx.strokeStyle = "rgba(255, 255, 255, 0.6)";
       ctx.lineWidth = 2;
       ctx.setLineDash([4, 4]);
@@ -417,7 +410,6 @@ HTML_APP_CODE = """
       prevX = s.x;
       prevY = s.y;
 
-      // Draw Ball Marker Outer Halo
       ctx.fillStyle = (s.lie === 'OB' || s.penalty > 0) ? "#e53e3e" : (s.lie === 'Green' ? "#38a169" : "#1e3a8a");
       ctx.beginPath();
       ctx.arc(s.x, s.y, 12, 0, Math.PI * 2);
@@ -427,7 +419,6 @@ HTML_APP_CODE = """
       ctx.lineWidth = 2;
       ctx.stroke();
 
-      // Shot Number Inner Text
       ctx.fillStyle = "#ffffff";
       ctx.font = "bold 11px sans-serif";
       ctx.textAlign = "center";
@@ -478,12 +469,13 @@ HTML_APP_CODE = """
   function selectLie(lie, penaltyStrokes) {
     if (!tempCoords) return;
     const hole = roundData[currentHole - 1];
+    const defaultClub = hole.shots.length === 0 ? "Driver" : "7-Iron";
     hole.shots.push({ 
       x: tempCoords.x, 
       y: tempCoords.y, 
       lie: lie, 
       penalty: penaltyStrokes,
-      club: "7-Iron", 
+      club: defaultClub, 
       dist: "150 yds" 
     });
     tempCoords = null;
@@ -594,6 +586,7 @@ HTML_APP_CODE = """
     let totalPenalties = 0;
     let firAttempts = 0, firHits = 0;
     let girHits = 0;
+    let scrambleAttempts = 0, scrambleHits = 0;
 
     let clubStats = {};
 
@@ -607,14 +600,21 @@ HTML_APP_CODE = """
         totalScore += holeScore;
         totalPutts += h.putts.length;
 
+        // FIR Calculation
         if (h.par >= 4 && h.shots.length > 0) {
           firAttempts++;
           if (h.shots[0].lie === 'Fairway') firHits++;
         }
 
+        // GIR Calculation
         const girTarget = h.par - 2;
-        if ((h.shots.length + penaltyStrokes) <= girTarget && h.shots.some(s => s.lie === 'Green')) {
+        const isGIR = (h.shots.length + penaltyStrokes) <= girTarget && h.shots.some(s => s.lie === 'Green');
+        if (isGIR) {
           girHits++;
+        } else {
+          // Up & Down / Scramble Opportunity
+          scrambleAttempts++;
+          if (h.putts.length === 1) scrambleHits++;
         }
       }
 
@@ -634,6 +634,7 @@ HTML_APP_CODE = """
     document.getElementById('s19-par').innerText = totalScore > 0 ? (relPar > 0 ? `+${relPar}` : (relPar === 0 ? "E" : relPar)) : "-";
     document.getElementById('s19-fir').innerText = firAttempts > 0 ? `${Math.round((firHits / firAttempts) * 100)}%` : "-";
     document.getElementById('s19-gir').innerText = `${Math.round((girHits / 18) * 100)}%`;
+    document.getElementById('s19-scramble').innerText = scrambleAttempts > 0 ? `${Math.round((scrambleHits / scrambleAttempts) * 100)}% (${scrambleHits}/${scrambleAttempts})` : "-";
     document.getElementById('s19-putts').innerText = totalPutts;
     document.getElementById('s19-penalties').innerText = totalPenalties;
 
@@ -664,12 +665,21 @@ HTML_APP_CODE = """
     let totalScore = 0;
     let totalPutts = 0;
     let totalPenalties = 0;
+    let totalScrambleAttempts = 0;
+    let totalScrambleHits = 0;
 
     roundData.forEach(h => {
       let pen = h.shots.reduce((acc, s) => acc + (s.penalty || 0), 0);
       totalPenalties += pen;
       totalScore += (h.shots.length + h.putts.length + pen);
       totalPutts += h.putts.length;
+
+      const girTarget = h.par - 2;
+      const isGIR = (h.shots.length + pen) <= girTarget && h.shots.some(s => s.lie === 'Green');
+      if (!isGIR && (h.shots.length + h.putts.length) > 0) {
+        totalScrambleAttempts++;
+        if (h.putts.length === 1) totalScrambleHits++;
+      }
     });
 
     const courseName = document.getElementById('course-name').value || "Unknown Course";
@@ -692,6 +702,8 @@ HTML_APP_CODE = """
       totalScore,
       totalPutts,
       totalPenalties,
+      totalScrambleAttempts,
+      totalScrambleHits,
       details: roundData
     };
 
@@ -699,9 +711,8 @@ HTML_APP_CODE = """
     history.unshift(roundRecord);
     localStorage.setItem('golfVisualRounds', JSON.stringify(history));
 
-    alert("Round saved successfully! All penalty strokes have been recorded and the app will now reset.");
+    alert("Round saved successfully! Scramble stats & dispersions recorded. App will now reset.");
     
-    // Reset round data
     roundData = Array.from({ length: 18 }, (_, i) => ({ par: 4, shots: [], putts: [] }));
     currentHole = 1;
     switchTab('courseSetup');
@@ -714,50 +725,94 @@ HTML_APP_CODE = """
 
     if (totalRounds === 0) {
       document.getElementById('t-avg-score').innerText = "-";
-      document.getElementById('t-avg-putts').innerText = "-";
+      document.getElementById('t-avg-scramble').innerText = "-";
       document.getElementById('t-avg-fir').innerText = "-";
       document.getElementById('t-avg-gir').innerText = "-";
-      renderDispersionCanvas();
+      renderFairwayDispersionCanvas();
+      renderGreenDispersionCanvas();
       return;
     }
 
     let recent5 = history.slice(0, 5);
-    let scoreSum = 0, puttsSum = 0;
+    let scoreSum = 0;
+    let scrambleAttSum = 0, scrambleHitSum = 0;
 
     recent5.forEach(r => {
       scoreSum += r.totalScore;
-      puttsSum += r.totalPutts;
+      scrambleAttSum += (r.totalScrambleAttempts || 0);
+      scrambleHitSum += (r.totalScrambleHits || 0);
     });
 
     document.getElementById('t-avg-score').innerText = (scoreSum / recent5.length).toFixed(1);
-    document.getElementById('t-avg-putts').innerText = (puttsSum / recent5.length).toFixed(1);
+    document.getElementById('t-avg-scramble').innerText = scrambleAttSum > 0 ? `${Math.round((scrambleHitSum / scrambleAttSum) * 100)}%` : "-";
     document.getElementById('t-avg-fir').innerText = "64%";
     document.getElementById('t-avg-gir').innerText = "42%";
 
-    renderDispersionCanvas();
+    renderFairwayDispersionCanvas();
+    renderGreenDispersionCanvas();
   }
 
-  function renderDispersionCanvas() {
-    const dCanvas = document.getElementById('dispersionCanvas');
+  /* 1. FAIRWAY DISPERSION CANVAS (Tee Shots) */
+  function renderFairwayDispersionCanvas() {
+    const fCanvas = document.getElementById('fwDispersionCanvas');
+    const fCtx = fCanvas.getContext('2d');
+
+    fCtx.fillStyle = "#0f172a";
+    fCtx.fillRect(0, 0, 280, 240);
+
+    // Fairway Bounds Graphic Representation
+    fCtx.fillStyle = "rgba(74, 222, 128, 0.15)";
+    fCtx.fillRect(90, 0, 100, 240);
+    fCtx.strokeStyle = "#4ade80";
+    fCtx.lineWidth = 2;
+    fCtx.setLineDash([4, 4]);
+    fCtx.strokeRect(90, 0, 100, 240);
+    fCtx.setLineDash([]);
+
+    // Centerline Target
+    fCtx.strokeStyle = "#38bdf8";
+    fCtx.lineWidth = 1;
+    fCtx.beginPath(); fCtx.moveTo(140, 0); fCtx.lineTo(140, 240); fCtx.stroke();
+
+    let history = JSON.parse(localStorage.getItem('golfVisualRounds') || '[]');
+
+    history.forEach(r => {
+      r.details.forEach(h => {
+        if (h.shots.length > 0) {
+          const teeShot = h.shots[0];
+          let dx = (teeShot.x - 150) * 0.7;
+          let dy = (teeShot.y - 200) * 0.5;
+
+          fCtx.fillStyle = teeShot.lie === 'Fairway' ? "#38bdf8" : (teeShot.penalty > 0 ? "#ef4444" : "#f59e0b");
+          fCtx.beginPath();
+          fCtx.arc(140 + dx, 120 + dy, 5, 0, Math.PI * 2);
+          fCtx.fill();
+        }
+      });
+    });
+  }
+
+  /* 2. GREEN & APPROACH DISPERSION CANVAS */
+  function renderGreenDispersionCanvas() {
+    const dCanvas = document.getElementById('greenDispersionCanvas');
     const dCtx = dCanvas.getContext('2d');
 
     dCtx.fillStyle = "#0f172a";
-    dCtx.fillRect(0, 0, 280, 280);
+    dCtx.fillRect(0, 0, 280, 240);
 
     // Target Rings
     dCtx.strokeStyle = "#334155";
     dCtx.lineWidth = 1;
-    dCtx.beginPath(); dCtx.arc(140, 140, 40, 0, Math.PI * 2); dCtx.stroke();
-    dCtx.beginPath(); dCtx.arc(140, 140, 80, 0, Math.PI * 2); dCtx.stroke();
-    dCtx.beginPath(); dCtx.arc(140, 140, 120, 0, Math.PI * 2); dCtx.stroke();
+    dCtx.beginPath(); dCtx.arc(140, 120, 35, 0, Math.PI * 2); dCtx.stroke();
+    dCtx.beginPath(); dCtx.arc(140, 120, 70, 0, Math.PI * 2); dCtx.stroke();
 
     // Crosshairs
-    dCtx.beginPath(); dCtx.moveTo(140, 10); dCtx.lineTo(140, 270); dCtx.stroke();
-    dCtx.beginPath(); dCtx.moveTo(10, 140); dCtx.lineTo(270, 140); dCtx.stroke();
+    dCtx.beginPath(); dCtx.moveTo(140, 10); dCtx.lineTo(140, 230); dCtx.stroke();
+    dCtx.beginPath(); dCtx.moveTo(10, 120); dCtx.lineTo(270, 120); dCtx.stroke();
 
     // Target Center Pin
     dCtx.fillStyle = "#ef4444";
-    dCtx.beginPath(); dCtx.arc(140, 140, 5, 0, Math.PI * 2); dCtx.fill();
+    dCtx.beginPath(); dCtx.arc(140, 120, 5, 0, Math.PI * 2); dCtx.fill();
 
     let history = JSON.parse(localStorage.getItem('golfVisualRounds') || '[]');
     let selectedClub = document.getElementById('dispersion-club-select').value;
@@ -766,15 +821,16 @@ HTML_APP_CODE = """
 
     history.forEach(r => {
       r.details.forEach(h => {
-        h.shots.forEach(s => {
+        // Skip tee shot for approach dispersion
+        h.shots.slice(1).forEach(s => {
           if (selectedClub === 'ALL' || s.club === selectedClub) {
             totalShots++;
             let dx = (s.x - 150) * 0.7;
-            let dy = (s.y - 200) * 0.7;
+            let dy = (s.y - 50) * 0.7; // Normalized to green center pin
 
             dCtx.fillStyle = s.penalty > 0 ? "#ef4444" : "#38bdf8";
             dCtx.beginPath();
-            dCtx.arc(140 + dx, 140 + dy, 4, 0, Math.PI * 2);
+            dCtx.arc(140 + dx, 120 + dy, 4, 0, Math.PI * 2);
             dCtx.fill();
 
             if (dx < -10) leftCount++;
