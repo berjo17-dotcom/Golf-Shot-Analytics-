@@ -159,7 +159,7 @@ HTML_APP_CODE = """
         <button class="lie-btn lie-bunker" onclick="selectLie('Bunker', 0)">Sand Bunker</button>
         <button class="lie-btn lie-water" onclick="selectLie('Water Hazard', 1)">Water (+1 Pen)</button>
         <button class="lie-btn lie-green" onclick="selectLie('Green', 0)">Green</button>
-        <button class="lie-btn lie-ob" onclick="selectLie('OB', 2)">OB (+2 Pen)</button>
+        <button class="lie-btn lie-ob" onclick="selectLie('OB', 1)">OB (+1 Pen)</button>
       </div>
     </div>
 
@@ -823,4 +823,3 @@ HTML_APP_CODE = """
 
 # Render mobile application interface inside Streamlit
 components.html(HTML_APP_CODE, height=850, scrolling=True)
-
