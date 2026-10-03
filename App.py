@@ -60,7 +60,7 @@ HTML_APP_CODE = """
   .lie-bunker { background: #d69e2e; color: #744210; }
   .lie-water { background: #3182ce; }
   .lie-green { background: #38a169; }
-  .lie-ob { background: #e53e3e; }
+  .lie-ob { background: #dc2626; }
 
   .green-canvas { background: #48bb78; border-radius: 50%; width: 200px; height: 200px; margin: 0 auto; border: 4px solid #2f855a; display: block; cursor: pointer; }
 
@@ -178,7 +178,7 @@ HTML_APP_CODE = """
         <button class="lie-btn lie-bunker" onclick="selectLie('Bunker', 0)">Sand Bunker</button>
         <button class="lie-btn lie-water" onclick="selectLie('Water Hazard', 1)">Water (+1 Pen)</button>
         <button class="lie-btn lie-green" onclick="selectLie('Green', 0)">Green</button>
-        <button class="lie-btn lie-ob" onclick="selectLie('OB', 1)">OB (+1 Pen)</button>
+        <button class="lie-btn lie-ob" onclick="selectLie('OB', 1)">OB / Lost (+1 Pen)</button>
       </div>
     </div>
 
@@ -246,13 +246,17 @@ HTML_APP_CODE = """
       <div class="stat-box highlight"><div class="stat-value" id="t-avg-scramble">-</div><div class="stat-label">Up & Down %</div></div>
       <div class="stat-box"><div class="stat-value" id="t-avg-fir">-</div><div class="stat-label">Overall FIR %</div></div>
       <div class="stat-box"><div class="stat-value" id="t-avg-gir">-</div><div class="stat-label">Overall GIR %</div></div>
+      <div class="stat-box" style="grid-column: span 2; border:1px solid #ef4444; background:#fef2f2;">
+        <div class="stat-value" id="t-ob-count" style="color:#dc2626;">-</div>
+        <div class="stat-label" style="color:#991b1b; font-weight:bold;">Out of Bounds / Lost Balls Total</div>
+      </div>
     </div>
 
     <!-- DUAL DISPERSION DIAGRAMS -->
     <!-- 1. Fairway & Tee Shot Dispersion Canvas -->
     <div class="canvas-card">
-      <div style="font-weight:bold; color:#1e293b; font-size:0.85rem; margin-bottom:2px;">1. Fairway & Tee Shot Dispersion</div>
-      <div style="font-size:0.75rem; color:#64748b; margin-bottom:8px;">Tee Shots Relative to Fairway Centerline</div>
+      <div style="font-weight:bold; color:#1e293b; font-size:0.85rem; margin-bottom:2px;">1. Fairway & OB Tee Shot Dispersion</div>
+      <div style="font-size:0.75rem; color:#64748b; margin-bottom:8px;">Blue = In Play | Red [X] = Out of Bounds</div>
       <canvas id="fwDispersionCanvas" class="dispersion-canvas" width="280" height="240"></canvas>
     </div>
 
@@ -283,8 +287,11 @@ HTML_APP_CODE = """
       <div style="display:flex; justify-content:space-between; font-size:0.85rem; margin-bottom:4px;">
         <span>Right / Push Misses:</span><strong id="miss-right">0%</strong>
       </div>
-      <div style="display:flex; justify-content:space-between; font-size:0.85rem;">
-        <span>Short / Penalty Misses:</span><strong id="miss-short">0%</strong>
+      <div style="display:flex; justify-content:space-between; font-size:0.85rem; margin-bottom:4px;">
+        <span>Short Misses / Hazards:</span><strong id="miss-short">0%</strong>
+      </div>
+      <div style="display:flex; justify-content:space-between; font-size:0.85rem; color:#dc2626;">
+        <span>Long / Over Green Misses:</span><strong id="miss-long">0%</strong>
       </div>
     </div>
   </div>
@@ -335,16 +342,23 @@ HTML_APP_CODE = """
     }
   }
 
-  /* DETAILED REALISTIC HOLE GRAPHICS ENGINE */
+  /* REALISTIC HOLE GRAPHICS ENGINE WITH OB DASHED LINES */
   function drawHoleGraphics() {
     ctx.fillStyle = "#1b4332";
     ctx.fillRect(0, 0, 300, 420);
 
-    ctx.strokeStyle = "#e53e3e";
-    ctx.lineWidth = 4;
-    ctx.setLineDash([8, 8]);
-    ctx.strokeRect(4, 4, 292, 412);
+    // Out of Bounds Boundary Lines
+    ctx.strokeStyle = "#dc2626";
+    ctx.lineWidth = 3;
+    ctx.setLineDash([8, 6]);
+    ctx.strokeRect(6, 6, 288, 408);
     ctx.setLineDash([]);
+
+    // Out of Bounds Markers Text
+    ctx.fillStyle = "#f87171";
+    ctx.font = "bold 9px sans-serif";
+    ctx.fillText("OUT OF BOUNDS (OB)", 12, 18);
+    ctx.fillText("OUT OF BOUNDS (OB)", 180, 18);
 
     let fwGrad = ctx.createLinearGradient(0, 0, 0, 420);
     fwGrad.addColorStop(0, "#52b788");
@@ -369,16 +383,10 @@ HTML_APP_CODE = """
     ctx.beginPath();
     ctx.ellipse(80, 230, 28, 45, Math.PI / 6, 0, Math.PI * 2);
     ctx.fill();
-    ctx.strokeStyle = "#bee3f8";
-    ctx.lineWidth = 2;
-    ctx.stroke();
 
     ctx.fillStyle = "#d69e2e";
     ctx.beginPath();
     ctx.ellipse(195, 270, 18, 10, -Math.PI / 8, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.beginPath();
-    ctx.ellipse(118, 65, 14, 22, Math.PI / 4, 0, Math.PI * 2);
     ctx.fill();
 
     ctx.fillStyle = "#2d6a4f";
@@ -411,9 +419,6 @@ HTML_APP_CODE = """
 
     ctx.fillStyle = "#cbd5e0";
     ctx.fillRect(130, 385, 40, 14);
-    ctx.strokeStyle = "#4a5568";
-    ctx.lineWidth = 1;
-    ctx.strokeRect(130, 385, 40, 14);
 
     const hole = roundData[currentHole - 1];
     let prevX = 150, prevY = 392;
@@ -431,7 +436,7 @@ HTML_APP_CODE = """
       prevX = s.x;
       prevY = s.y;
 
-      ctx.fillStyle = (s.lie === 'OB' || s.penalty > 0) ? "#e53e3e" : (s.lie === 'Green' ? "#38a169" : "#1e3a8a");
+      ctx.fillStyle = (s.lie === 'OB') ? "#dc2626" : (s.penalty > 0 ? "#ea580c" : (s.lie === 'Green' ? "#38a169" : "#1e3a8a"));
       ctx.beginPath();
       ctx.arc(s.x, s.y, 12, 0, Math.PI * 2);
       ctx.fill();
@@ -443,7 +448,7 @@ HTML_APP_CODE = """
       ctx.fillStyle = "#ffffff";
       ctx.font = "bold 11px sans-serif";
       ctx.textAlign = "center";
-      ctx.fillText(idx + 1, s.x, s.y + 4);
+      ctx.fillText(s.lie === 'OB' ? 'X' : idx + 1, s.x, s.y + 4);
     });
   }
 
@@ -523,7 +528,6 @@ HTML_APP_CODE = """
   greenCanvas.addEventListener('click', handleGreenTap);
   greenCanvas.addEventListener('touchstart', handleGreenTap, { passive: false });
 
-  /* UNDO SHOT / PUTT FUNCTION */
   function undoLastShot() {
     const hole = roundData[currentHole - 1];
     if (hole.putts.length > 0) {
@@ -641,19 +645,16 @@ HTML_APP_CODE = """
         totalScore += holeScore;
         totalPutts += h.putts.length;
 
-        // FIR Calculation
         if (h.par >= 4 && h.shots.length > 0) {
           firAttempts++;
           if (h.shots[0].lie === 'Fairway') firHits++;
         }
 
-        // GIR Calculation
         const girTarget = h.par - 2;
         const isGIR = (h.shots.length + penaltyStrokes) <= girTarget && h.shots.some(s => s.lie === 'Green');
         if (isGIR) {
           girHits++;
         } else {
-          // Up & Down / Scramble Opportunity
           scrambleAttempts++;
           if (h.putts.length === 1) scrambleHits++;
         }
@@ -706,11 +707,14 @@ HTML_APP_CODE = """
     let totalScore = 0;
     let totalPutts = 0;
     let totalPenalties = 0;
+    let totalOB = 0;
     let totalScrambleAttempts = 0;
     let totalScrambleHits = 0;
 
     roundData.forEach(h => {
       let pen = h.shots.reduce((acc, s) => acc + (s.penalty || 0), 0);
+      let obShots = h.shots.filter(s => s.lie === 'OB').length;
+      totalOB += obShots;
       totalPenalties += pen;
       totalScore += (h.shots.length + h.putts.length + pen);
       totalPutts += h.putts.length;
@@ -743,6 +747,7 @@ HTML_APP_CODE = """
       totalScore,
       totalPutts,
       totalPenalties,
+      totalOB,
       totalScrambleAttempts,
       totalScrambleHits,
       details: roundData
@@ -752,7 +757,7 @@ HTML_APP_CODE = """
     history.unshift(roundRecord);
     localStorage.setItem('golfVisualRounds', JSON.stringify(history));
 
-    alert("Round saved successfully! Scramble stats & dispersions recorded. App will now reset.");
+    alert("Round saved successfully! OB stats & dispersions recorded. App will now reset.");
     
     roundData = Array.from({ length: 18 }, (_, i) => ({ par: 4, yardage: 400, handicap: i + 1, shots: [], putts: [] }));
     currentHole = 1;
@@ -769,6 +774,7 @@ HTML_APP_CODE = """
       document.getElementById('t-avg-scramble').innerText = "-";
       document.getElementById('t-avg-fir').innerText = "-";
       document.getElementById('t-avg-gir').innerText = "-";
+      document.getElementById('t-ob-count').innerText = "-";
       renderFairwayDispersionCanvas();
       renderGreenDispersionCanvas();
       return;
@@ -777,23 +783,26 @@ HTML_APP_CODE = """
     let recent5 = history.slice(0, 5);
     let scoreSum = 0;
     let scrambleAttSum = 0, scrambleHitSum = 0;
+    let obTotal = 0;
 
     recent5.forEach(r => {
       scoreSum += r.totalScore;
       scrambleAttSum += (r.totalScrambleAttempts || 0);
       scrambleHitSum += (r.totalScrambleHits || 0);
+      obTotal += (r.totalOB || 0);
     });
 
     document.getElementById('t-avg-score').innerText = (scoreSum / recent5.length).toFixed(1);
     document.getElementById('t-avg-scramble').innerText = scrambleAttSum > 0 ? `${Math.round((scrambleHitSum / scrambleAttSum) * 100)}%` : "-";
     document.getElementById('t-avg-fir').innerText = "64%";
     document.getElementById('t-avg-gir').innerText = "42%";
+    document.getElementById('t-ob-count').innerText = `${obTotal} Shots (${(obTotal / recent5.length).toFixed(1)} / rnd)`;
 
     renderFairwayDispersionCanvas();
     renderGreenDispersionCanvas();
   }
 
-  /* 1. FAIRWAY DISPERSION CANVAS (Tee Shots) */
+  /* 1. FAIRWAY DISPERSION CANVAS (Tee Shots + Out of Bounds Plots) */
   function renderFairwayDispersionCanvas() {
     const fCanvas = document.getElementById('fwDispersionCanvas');
     const fCtx = fCanvas.getContext('2d');
@@ -801,14 +810,25 @@ HTML_APP_CODE = """
     fCtx.fillStyle = "#0f172a";
     fCtx.fillRect(0, 0, 280, 240);
 
+    // Out of Bounds Danger Areas (Sides)
+    fCtx.fillStyle = "rgba(220, 38, 38, 0.15)";
+    fCtx.fillRect(0, 0, 85, 240);
+    fCtx.fillRect(195, 0, 85, 240);
+
+    // OB Boundary Lines
+    fCtx.strokeStyle = "#ef4444";
+    fCtx.lineWidth = 1.5;
+    fCtx.setLineDash([6, 4]);
+    fCtx.beginPath(); fCtx.moveTo(85, 0); fCtx.lineTo(85, 240); fCtx.stroke();
+    fCtx.beginPath(); fCtx.moveTo(195, 0); fCtx.lineTo(195, 240); fCtx.stroke();
+    fCtx.setLineDash([]);
+
     // Fairway Bounds Graphic Representation
     fCtx.fillStyle = "rgba(74, 222, 128, 0.15)";
     fCtx.fillRect(90, 0, 100, 240);
     fCtx.strokeStyle = "#4ade80";
     fCtx.lineWidth = 2;
-    fCtx.setLineDash([4, 4]);
     fCtx.strokeRect(90, 0, 100, 240);
-    fCtx.setLineDash([]);
 
     // Centerline Target
     fCtx.strokeStyle = "#38bdf8";
@@ -824,16 +844,26 @@ HTML_APP_CODE = """
           let dx = (teeShot.x - 150) * 0.7;
           let dy = (teeShot.y - 200) * 0.5;
 
-          fCtx.fillStyle = teeShot.lie === 'Fairway' ? "#38bdf8" : (teeShot.penalty > 0 ? "#ef4444" : "#f59e0b");
-          fCtx.beginPath();
-          fCtx.arc(140 + dx, 120 + dy, 5, 0, Math.PI * 2);
-          fCtx.fill();
+          if (teeShot.lie === 'OB') {
+            // Out of Bounds Plots (Drawn with Red 'X')
+            fCtx.strokeStyle = "#dc2626";
+            fCtx.lineWidth = 3;
+            let px = 140 + dx;
+            let py = 120 + dy;
+            fCtx.beginPath(); fCtx.moveTo(px - 6, py - 6); fCtx.lineTo(px + 6, py + 6); fCtx.stroke();
+            fCtx.beginPath(); fCtx.moveTo(px + 6, py - 6); fCtx.lineTo(px - 6, py + 6); fCtx.stroke();
+          } else {
+            fCtx.fillStyle = teeShot.lie === 'Fairway' ? "#38bdf8" : "#f59e0b";
+            fCtx.beginPath();
+            fCtx.arc(140 + dx, 120 + dy, 5, 0, Math.PI * 2);
+            fCtx.fill();
+          }
         }
       });
     });
   }
 
-  /* 2. GREEN & APPROACH DISPERSION CANVAS */
+  /* 2. GREEN & APPROACH DISPERSION CANVAS (Includes OVER / LONG Tracking) */
   function renderGreenDispersionCanvas() {
     const dCanvas = document.getElementById('greenDispersionCanvas');
     const dCtx = dCanvas.getContext('2d');
@@ -851,6 +881,13 @@ HTML_APP_CODE = """
     dCtx.beginPath(); dCtx.moveTo(140, 10); dCtx.lineTo(140, 230); dCtx.stroke();
     dCtx.beginPath(); dCtx.moveTo(10, 120); dCtx.lineTo(270, 120); dCtx.stroke();
 
+    // Long / Over Green Warning Zone
+    dCtx.fillStyle = "rgba(220, 38, 38, 0.2)";
+    dCtx.fillRect(10, 10, 260, 40);
+    dCtx.fillStyle = "#f87171";
+    dCtx.font = "bold 9px sans-serif";
+    dCtx.fillText("LONG / OVER GREEN MISS ZONE", 65, 25);
+
     // Target Center Pin
     dCtx.fillStyle = "#ef4444";
     dCtx.beginPath(); dCtx.arc(140, 120, 5, 0, Math.PI * 2); dCtx.fill();
@@ -858,25 +895,25 @@ HTML_APP_CODE = """
     let history = JSON.parse(localStorage.getItem('golfVisualRounds') || '[]');
     let selectedClub = document.getElementById('dispersion-club-select').value;
 
-    let leftCount = 0, rightCount = 0, shortCount = 0, totalShots = 0;
+    let leftCount = 0, rightCount = 0, shortCount = 0, longCount = 0, totalShots = 0;
 
     history.forEach(r => {
       r.details.forEach(h => {
-        // Skip tee shot for approach dispersion
         h.shots.slice(1).forEach(s => {
           if (selectedClub === 'ALL' || s.club === selectedClub) {
             totalShots++;
             let dx = (s.x - 150) * 0.7;
-            let dy = (s.y - 50) * 0.7; // Normalized to green center pin
+            let dy = (s.y - 50) * 0.7;
 
-            dCtx.fillStyle = s.penalty > 0 ? "#ef4444" : "#38bdf8";
+            dCtx.fillStyle = (dy < -30 || s.lie === 'OB') ? "#ef4444" : "#38bdf8";
             dCtx.beginPath();
             dCtx.arc(140 + dx, 120 + dy, 4, 0, Math.PI * 2);
             dCtx.fill();
 
             if (dx < -10) leftCount++;
             if (dx > 10) rightCount++;
-            if (dy > 10 || s.penalty > 0) shortCount++;
+            if (dy > 10) shortCount++;
+            if (dy < -30) longCount++; // Gone too long / over green
           }
         });
       });
@@ -886,6 +923,7 @@ HTML_APP_CODE = """
       document.getElementById('miss-left').innerText = `${Math.round((leftCount / totalShots) * 100)}%`;
       document.getElementById('miss-right').innerText = `${Math.round((rightCount / totalShots) * 100)}%`;
       document.getElementById('miss-short').innerText = `${Math.round((shortCount / totalShots) * 100)}%`;
+      document.getElementById('miss-long').innerText = `${Math.round((longCount / totalShots) * 100)}%`;
     }
   }
 
@@ -920,3 +958,4 @@ HTML_APP_CODE = """
 
 # Render mobile application interface inside Streamlit
 components.html(HTML_APP_CODE, height=850, scrolling=True)
+
